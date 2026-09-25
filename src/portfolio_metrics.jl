@@ -34,13 +34,13 @@ end
 
 
 """
-    annualized_volatility(returns; periods_per_year=252)
-
+    annualized_volatility(returns; periods_per_year)
+    e.g. periods_per_year = 252 for daily returns.
 Annualized standard deviation of periodic returns.
 """
 function annualized_volatility(
     returns;
-    periods_per_year::Int=252,
+    periods_per_year::Int,
 )
 
     r = Float64.(collect(returns))
@@ -54,15 +54,17 @@ end
 
 
 """
-    downside_deviation(returns; mar=0.0, periods_per_year=252)
+    downside_deviation(returns; mar, periods_per_year)
+    e.g. mar = 0.01 for 1% minimum acceptable return 
+         periods_per_year = 252 for daily returns.
 
 Annualized downside deviation relative to the minimum acceptable
 return (MAR).
 """
 function downside_deviation(
     returns;
-    mar::Float64=0.1,
-    periods_per_year::Int=252,
+    mar::Float64,
+    periods_per_year::Int,
 )
 
     r = Float64.(collect(returns))
@@ -111,8 +113,8 @@ end
 
 
 """
-    historical_cvar(returns; confidence=0.95)
-
+    historical_cvar(returns; confidence)
+    e.g. confidence = 0.95 for 95% CVaR.
 Historical daily CVaR (expected shortfall) calculated from the
 empirical loss distribution.
 
@@ -122,7 +124,7 @@ the same way as volatility.
 """
 function historical_cvar(
     returns;
-    confidence::Float64=0.95,
+    confidence::Float64,
 )
 
     if !(0.0 < confidence < 1.0)
@@ -152,13 +154,13 @@ end
 
 
 """
-    annualized_return(returns; periods_per_year=252)
-
+    annualized_return(returns; periods_per_year)
+    e.g. periods_per_year = 252 for daily returns.
 Geometric annualized return based on realized cumulative wealth.
 """
 function annualized_return(
     returns;
-    periods_per_year::Int=252,
+    periods_per_year::Int,
 )
 
     r = Float64.(collect(returns))
@@ -188,8 +190,9 @@ Calculate the main OOS portfolio performance metrics.
 """
 function portfolio_metrics(
     returns;
-    periods_per_year::Int=252,
-    mar::Float64=0.01,     
+    periods_per_year::Int,
+    mar::Float64,
+    cvar_confidence::Float64,     
 )
 
     r = Float64.(collect(returns))
@@ -223,7 +226,7 @@ function portfolio_metrics(
     cvar95 =
         historical_cvar(
             r;
-            confidence=0.95,
+            confidence=cvar_confidence,
         )
 
     # With risk-free rate = 0, Sharpe is annualized return divided

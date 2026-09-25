@@ -3,31 +3,25 @@
 # ================================================================
 
 function run_model(
-    model_name,
-    train_returns;
-    max_weight::Float64 = 0.08,
-    semideviation_mar::Float64 = 0.05,
-    ewma_halflife::Float64 = 252.0,
-    shrinkage_alpha::Float64 = 0.25
+    model::ModelConfig,
+    train_returns::DataFrame,
+    config::ResearchConfig,
 )
 
-    if startswith(
-        model_name,
-        "MinVar"
-    )
+    if model.objective == :minvar
 
         Σ =
             ewma_covariance(
                 train_returns;
                 half_life =
-                    ewma_halflife
+                    config.ewma_halflife
             )
 
         Σ =
             shrink_covariance(
                 Σ;
                 alpha =
-                    shrinkage_alpha
+                    config.shrinkage_alpha
             )
 
         Σ =
@@ -37,35 +31,33 @@ function run_model(
             minvar_weights(
                 Σ;
                 max_weight =
-                    max_weight
+                    model.max_weight
             )
 
-    elseif startswith(
-        model_name,
-        "Semideviation"
-    )
+    elseif model.objective == :semideviation
 
         weights =
             semideviation_weights(
                 train_returns;
                 mar =
-                    semideviation_mar,
+                    config.semideviation_mar,
+
                 max_weight =
-                    max_weight
+                    model.max_weight
             )
 
         Σ =
             ewma_covariance(
                 train_returns;
                 half_life =
-                    ewma_halflife
+                    config.ewma_halflife
             )
 
         Σ =
             shrink_covariance(
                 Σ;
                 alpha =
-                    shrinkage_alpha
+                    config.shrinkage_alpha
             )
 
         Σ =
@@ -74,67 +66,37 @@ function run_model(
     else
 
         error(
-            "Unknown model: $model_name"
+            "Unknown portfolio objective: " *
+            "$(model.objective)"
         )
+
     end
 
     return (
         weights = weights,
         covariance = Σ
     )
+
 end
 
 
 function _run_universe_from_prices(
     universe_name,
     prices::DataFrame,
-    tickers;
-
-    start_date::Date =
-        Date("2013-09-23"),
-
-    end_date::Date =
-        Date("2026-09-23"),
-
-    oos_observations::Int =
-        252,
-
-    min_training_observations::Int =
-        250,
-
-    ewma_halflife::Float64 =
-        252.0,
-
-    shrinkage_alpha::Float64 =
-        0.25,
-
-    semideviation_mar::Float64 =
-        0.05
+    tickers,
+    config::ResearchConfig,
 )
 
     println()
-    println(
-        "================================================"
-    )
-    println(
-        "UNIVERSE: ",
-        universe_name
-    )
-    println(
-        "================================================"
-    )
+    println("================================================")
+    println("UNIVERSE: ", universe_name)
+    println("================================================")
 
+    aligned_prices = align_prices(prices)
 
-    aligned_prices =
-        align_prices(
-            prices
-        )
+    expected_assets = length(tickers)
 
-    expected_assets =
-        length(tickers)
-
-    actual_assets =
-        length(names(aligned_prices, Not(:date)))
+    actual_assets = length(names(aligned_prices, Not(:date)))
 
     if actual_assets != expected_assets
         error(
@@ -151,12 +113,11 @@ function _run_universe_from_prices(
             aligned_prices
         )
 
-    T =
-        size(returns, 1)
+    T = size(returns, 1)
 
     required =
-        min_training_observations +
-        oos_observations
+        config.min_training_observations +
+        config.oos_observations
 
     if T < required
 
@@ -167,11 +128,9 @@ function _run_universe_from_prices(
         )
     end
 
-    split =
-        T - oos_observations
+    split = T - config.oos_observations
 
-    train_returns =
-        returns[1:split, :]
+    train_returns = returns[1:split, :]
 
     oos_returns =
         returns[
@@ -189,57 +148,24 @@ function _run_universe_from_prices(
         size(oos_returns, 1)
     )
 
-    models = [
-        (
-            "MinVar_8pct",
-            0.08
-        ),
-        (
-            "MinVar_Uncapped",
-            1.0
-        ),
-        (
-            "Semideviation_8pct",
-            0.08
-        ),
-        (
-            "Semideviation_Uncapped",
-            1.0
-        )
-    ]
+    models = default_models(config)
 
-    metric_rows =
-        DataFrame()
+    metric_rows = DataFrame()
 
-    weight_rows =
-        DataFrame()
+    weight_rows = DataFrame()
 
-    for (
-        model_name,
-        max_weight
-    ) in models
+    for model in models
+
+        model_name = model.name
 
         println()
-        println(
-            "Running ",
-            model_name
-        )
+        println("Running ", model_name)
 
         result =
             run_model(
-                model_name,
-                train_returns;
-                max_weight =
-                    max_weight,
-
-                semideviation_mar =
-                    semideviation_mar,
-
-                ewma_halflife =
-                    ewma_halflife,
-
-                shrinkage_alpha =
-                    shrinkage_alpha
+                model,
+                train_returns,
+                config
             )
 
         weights = result.weights
@@ -271,7 +197,13 @@ function _run_universe_from_prices(
 
         metrics =
             portfolio_metrics(
-                oos_portfolio_returns
+                oos_portfolio_returns;
+                periods_per_year =
+                    config.periods_per_year,
+                mar =
+                    config.semideviation_mar,
+                cvar_confidence =
+                    config.cvar_confidence
             )
 
         concentration =
@@ -371,27 +303,8 @@ end
 
 function run_universe(
     universe_name,
-    tickers;
-    start_date::Date =
-        Date("2021-09-23"),
-
-    end_date::Date =
-        Date("2026-09-23"),
-
-    oos_observations::Int =
-        252,
-
-    min_training_observations::Int =
-        250,
-
-    ewma_halflife::Float64 =
-        252.0,
-
-    shrinkage_alpha::Float64 =
-        0.25,
-
-    semideviation_mar::Float64 =
-        0.0
+    tickers,
+    config::ResearchConfig,
 )
 
     if isempty(tickers)
@@ -404,52 +317,22 @@ function run_universe(
     prices =
         download_prices(
             tickers;
-            startdt = start_date,
-            enddt = end_date
+            startdt = config.start_date,
+            enddt = config.end_date
         )
 
     return _run_universe_from_prices(
         universe_name,
         prices,
-        tickers;
-        start_date = start_date,
-        end_date = end_date,
-        oos_observations = oos_observations,
-        min_training_observations = min_training_observations,
-        ewma_halflife = ewma_halflife,
-        shrinkage_alpha = shrinkage_alpha,
-        semideviation_mar = semideviation_mar
+        tickers,
+        config
     )
 end
 
 function compare_universes(
-    requested_tickers;
-    start_date::Date =
-        Date("2021-09-23"),
-
-    end_date::Date =
-        Date("2026-09-23"),
-
-    oos_observations::Int =
-        252,
-
-    min_training_observations::Int =
-        250,
-
-    ewma_halflife::Float64 =
-        252.0,
-
-    shrinkage_alpha::Float64 =
-        0.25,
-
-    semideviation_mar::Float64 =
-        0.0,
-
-    max_gap_days::Int =
-        5,
-
-    output_directory =
-        "output"
+    requested_tickers,
+    config::ResearchConfig;
+    output_directory = "output",
 )
 
     mkpath(output_directory)
@@ -462,16 +345,16 @@ function compare_universes(
     prices =
         download_prices(
             requested_tickers;
-            startdt = start_date,
-            enddt = end_date
+            startdt = config.start_date,
+            enddt = config.end_date
         )
 
     diagnostics =
         ticker_history_diagnostics(
             prices;
-            start_date = start_date,
-            end_date = end_date,
-            max_gap_days = max_gap_days
+            start_date = config.start_date,
+            end_date = config.end_date,
+            max_gap_days = config.max_gap_days
         )
 
     println()
@@ -547,14 +430,8 @@ function compare_universes(
         _run_universe_from_prices(
             "LongHistory_$(length(eligible_tickers))",
             long_prices,
-            eligible_tickers;
-            start_date = start_date,
-            end_date = end_date,
-            oos_observations = oos_observations,
-            min_training_observations = min_training_observations,
-            ewma_halflife = ewma_halflife,
-            shrinkage_alpha = shrinkage_alpha,
-            semideviation_mar = semideviation_mar
+            eligible_tickers,
+            config
         )
  
     # ------------------------------------------------------------
@@ -565,14 +442,8 @@ function compare_universes(
         _run_universe_from_prices(
             "FullUniverse_$(length(requested_tickers))",
             full_prices,
-            requested_tickers;
-            start_date = start_date,
-            end_date = end_date,
-            oos_observations = oos_observations,
-            min_training_observations = min_training_observations,
-            ewma_halflife = ewma_halflife,
-            shrinkage_alpha = shrinkage_alpha,
-            semideviation_mar = semideviation_mar
+            requested_tickers,
+            config
         )
 
 

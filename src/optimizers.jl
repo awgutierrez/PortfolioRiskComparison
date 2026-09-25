@@ -11,7 +11,7 @@ max_weight = 1.0 gives the effectively uncapped case.
 """
 function minvar_weights(
     Σ;
-    max_weight::Float64 = 0.08
+    max_weight::Float64,
 )
 
     N =
@@ -58,9 +58,11 @@ end
 """
     semideviation_weights(
         returns;
-        mar=0.0,
-        max_weight=1.0
+        mar,
+        max_weight
     )
+    e.g. mar = 0.01 for 1% minimum acceptable return.
+    e.g. max_weight = 0.08 for an 8% position limit.
 
 Calculate long-only, fully invested portfolio weights that minimize
 squared downside deviation relative to the MAR.
@@ -69,8 +71,8 @@ The `date` column is excluded automatically.
 """
 function semideviation_weights(
     returns::DataFrame;
-    mar::Float64=0.0,
-    max_weight::Float64=1.0,
+    mar::Float64,
+    max_weight::Float64,
 )
 
     tickers = names(returns, Not(:date))

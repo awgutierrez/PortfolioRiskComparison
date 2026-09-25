@@ -100,6 +100,23 @@ FULL_UNIVERSE = [
 #    "BSX",
 ]
 
+# ================================================================
+# RESEARCH CONFIGURATION
+#
+# Changing ResearchConfig changes the default methodology 
+# for the entire package.
+#
+# For sensitivity analysis, create a new 
+# ResearchConfig and pass it to compare_universes.
+# e.g. baseline_config = ResearchConfig()
+#      short_halflife_config = ResearchConfig(
+#           ewma_halflife = 126.0)
+#      ten_percent_cap_config = ResearchConfig(
+#           capped_max_weight = 0.10)
+# ================================================================
+
+config = ResearchConfig()
+validate_config(config)
 
 # ================================================================
 # RUN EXPERIMENTS
@@ -110,7 +127,8 @@ FULL_UNIVERSE = [
 
 results =
     compare_universes(
-        FULL_UNIVERSE;
+        FULL_UNIVERSE,
+        config;
         output_directory =
             joinpath(
                 @__DIR__,
@@ -140,3 +158,5 @@ println("  output/universe_diagnostics.csv")
 println("  output/portfolio_comparison.csv")
 
 println("  output/portfolio_weights.csv")
+
+println("  output/research_config.toml")

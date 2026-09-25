@@ -12,6 +12,7 @@ using YFinance
 
 const MOI = MathOptInterface
 
+include("config.jl")
 include("data.jl")
 include("risk_models.jl")
 include("optimizers.jl")
@@ -19,6 +20,10 @@ include("portfolio_metrics.jl")
 include("experiments.jl")
 
 export
+    ResearchConfig,
+    ModelConfig,
+    validate_config,
+    
     download_prices,
     align_prices,
     calculate_log_returns,
